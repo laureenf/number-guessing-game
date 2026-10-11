@@ -154,7 +154,7 @@ int main()
         std::cout << "Status = " << (win ? "WIN" : "LOSE") << "\n";
         std::cout << "Number of tries = " << (win ? turn_counter : turn_counter - 1) << "\n";
 
-        for (int i = 0; i < game_stats_str.size(); ++i) std::cout << '*';
+        for (size_t i = 0; i < game_stats_str.size(); ++i) std::cout << '*';
         std::cout << "\n\n";
         
         std::string overall_stats_str = "***** Overall Statistics *****";
@@ -163,7 +163,7 @@ int main()
         std::cout << "Number of Wins = " << win_counter << " out of " << game_counter << "\n";
         std::cout << "Lowest Number of Guesses = " << min_guesses << "\n";
 
-        for (int i = 0; i < overall_stats_str.size(); ++i) std::cout << '*';
+        for (size_t i = 0; i < overall_stats_str.size(); ++i) std::cout << '*';
         std::cout << "\n\n";
 
         // Turn check
