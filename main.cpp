@@ -12,20 +12,13 @@
 #define MIN_NUM      (1)
 #define MAX_NUM      (100)
 
-// Source - https://stackoverflow.com/a/29382078
-// Posted by SleuthEye, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-10-11, License - CC BY-SA 3.0
-
-int random_int(int min, int max)
-{
-   return min + rand() % (max + 1 - min);
-}
-
 // Wrapper to generate a random number given a fixed range
 
 int generate_random_num(void)
 {
-    return random_int(MIN_NUM, MAX_NUM);
+    static std::mt19937 engine(std::random_device{}());
+    static std::uniform_int_distribution<int> distribution(MIN_NUM, MAX_NUM);
+    return distribution(engine);
 }
 
 // Helper to find min
