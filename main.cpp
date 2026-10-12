@@ -48,8 +48,6 @@ int main()
     int game_counter = 0;
     int win_counter = 0;
 
-    std::srand(static_cast<unsigned>(std::time(nullptr)));
-
     do
     {
         std::cout << "\nPlease select the difficulty level:\n";
