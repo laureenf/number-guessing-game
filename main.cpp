@@ -4,19 +4,18 @@
 #include <string>
 #include <chrono>
 #include <optional>
-#include <map>
 #include <algorithm>
 #include <array>
 #include <string_view>
 
-struct Difficulty
+struct LevelDesc
 {
     int id;
-    std::string_view name;
-    int chances;
+    std::string_view type;
+    int num_chances;
 };
 
-constexpr std::array<Difficulty, 3> difficulties{{
+constexpr std::array<LevelDesc, 3> difficulty_levels{{
     {1, "Easy",   10},
     {2, "Medium",  5},
     {3, "Hard",    3}
@@ -26,175 +25,258 @@ constexpr int NUM_S_IN_MIN = 60;
 constexpr int MIN_NUM = 1;
 constexpr int MAX_NUM = 100;
 
-// Wrapper to generate a random number given a fixed range
 
-int generate_random_num(void)
+
+// Wrapper to generate a random number given a fixed range
+int generate_random_num()
 {
     static std::mt19937 engine(std::random_device{}());
     static std::uniform_int_distribution<int> distribution(MIN_NUM, MAX_NUM);
     return distribution(engine);
 }
 
-// MAIN
+// Parsing helpers
 
-int main()
+std::optional<int> parse_int_from_user_input()
+{
+    std::string line;
+    if (!std::getline(std::cin, line))
+        return std::nullopt;
+
+    int value{};
+    const auto [ptr, ec] =
+        std::from_chars(line.data(), line.data() + line.size(), value);
+
+    if (ec != std::errc{} || ptr != line.data() + line.size())
+    {
+        std::cout << "\nInvalid input. Please try again.\n";
+        return std::nullopt;
+    }
+
+    return value;
+}
+
+// Validation helpers
+
+bool validate_user_guess_range(const int input_num)
+{
+    if (input_num < MIN_NUM && input_num > MAX_NUM)
+    {
+        std::cout << "\n" << input_num << " is not within range -> [" << MIN_NUM << ", " << MAX_NUM << "]. Please try again.\n";
+        return false;
+    }
+    return true;
+}
+
+bool validate_user_end_response(const std::string& response)
+{
+    return response.size() == 0 || (response.size() == 1 ? (response[0] == 'Y' || response[0] == 'y') : false);
+}
+
+// Print helpers
+
+void print_welcome()
 {
     std::cout << "Welcome to the Number Guessing Game!\n"
         "I'm thinking of a number between 1 and 100.\n"
         "You will have multiple chances to guess the correct number.\n\n";
+}
 
-    bool flag = true;
-    int game_counter = 0;
-    int win_counter = 0;
+void print_difficulty_levels()
+{
+    std::cout << "\nPlease select the difficulty level:\n";
 
-    std::optional<int> min_guesses;
+    for (const auto& difficulty : difficulty_levels)
+    {
+        std::cout << difficulty.id << ". "
+                << difficulty.type << " ("
+                << difficulty.num_chances << " chances)\n";
+    }
+}
+
+void print_user_prompt()
+{
+    std::cout << "Enter your choice: ";
+}
+
+void print_user_prompt_v2()
+{
+    std::cout << "Enter your guess: ";
+}
+
+void print_user_prompt_v3()
+{
+    std::cout << "\nWould you like to play again? (Y/n) ";
+}
+
+void print_invalid_level_err_msg()
+{
+    std::cout << "Invalid difficulty level. Please try again.\n";
+}
+
+void print_chosen_level(const std::string_view level_name)
+{
+    std::cout << "\nGreat! You have selected the " << level_name << " difficulty level.\n"
+        "Let's start the game!\n";
+}
+
+void print_win_msg(const int num_attempts)
+{
+    std::cout << "\nCongratulations! You guessed the correct number in " << num_attempts << " attempts.\n\n";
+}
+
+void print_incorrect_guess_msg(const int input_num, const int secret_num)
+{
+    std::cout << "\nIncorrect! The number is " << (input_num < secret_num ? "greater" : "lesser") << " than " << input_num << ".\n";
+}
+
+void print_lose_msg(const int secret_num)
+{
+    std::cout << "\nYou have run out of chances! The number was: " << secret_num << "\nBetter luck next time :)\n\n";
+}
+
+void print_end_stats(const long long time_taken_in_s, const int num_games_played, const int num_games_won, const int num_attempts, const bool won_game, const std::optional<int> lowest_num_guesses_in_a_win)
+{
+    auto mins = time_taken_in_s / NUM_S_IN_MIN;
+    auto seconds = time_taken_in_s % NUM_S_IN_MIN;
+
+    std::string game_stats_str = "***** Game " + std::to_string(num_games_played) + " Statistics *****";
+    std::cout << "\n" << game_stats_str << "\n";
+
+    std::cout << "Time taken = " << mins << "m " << seconds << "s\n";
+    std::cout << "Status = " << (won_game ? "WIN" : "LOSE") << "\n";
+    std::cout << "Number of tries = " << num_attempts << "\n";
+
+    for (size_t i = 0; i < game_stats_str.size(); ++i) std::cout << '*';
+    std::cout << "\n\n";
+
+    std::string overall_stats_str = "***** Overall Statistics *****";
+    std::cout << "\n" << overall_stats_str << "\n";
+
+    std::cout << "Number of Wins = " << num_games_won << " out of " << num_games_played << "\n";
+    std::cout << "Lowest Number of Guesses = ";
+
+    if (lowest_num_guesses_in_a_win)
+    {
+        std::cout << *lowest_num_guesses_in_a_win << "\n";
+    }
+    else
+    {
+        std::cout << "N/A" << "\n";
+    }
+
+    for (size_t i = 0; i < overall_stats_str.size(); ++i) std::cout << '*';
+    std::cout << "\n\n";
+}
+
+
+// MAIN
+
+int main()
+{
+    print_welcome();
+
+    bool keep_playing = true;
+    int num_games_played = 0;
+    int num_games_won = 0;
+
+    std::optional<int> lowest_num_guesses_in_a_win;
 
     do
     {
-        std::cout << "\nPlease select the difficulty level:\n";
+        print_difficulty_levels();
 
-        for (const auto& difficulty : difficulties)
+        print_user_prompt();
+
+        std::optional<int> level = parse_int_from_user_input();
+
+        if (!level)
         {
-            std::cout << difficulty.id << ". "
-                    << difficulty.name << " ("
-                    << difficulty.chances << " chances)\n";
-        }
-
-        std::cout << "Enter your choice: ";
-
-        int level;
-
-        std::string line;
-        if (!std::getline(std::cin, line)) return 0;
-
-        auto [ptr, ec] = std::from_chars(
-            line.data(), line.data() + line.size(), level);
-
-        if (ec != std::errc{} || ptr != line.data() + line.size())
-        {
-            std::cout << "\nInvalid option. Please try again.\n";
+            if (std::cin.eof())
+                return 0;
             continue;
         }
 
         auto it = std::find_if(
-            difficulties.begin(),
-            difficulties.end(),
-            [level](const Difficulty& d)
+            difficulty_levels.begin(),
+            difficulty_levels.end(),
+            [level](const LevelDesc& d)
             {
-                return d.id == level;
+                return d.id == *level;
             }
         );
 
-        if (it == difficulties.end())
+        if (it == difficulty_levels.end())
         {
-            std::cout << "Invalid difficulty level.\n";
+            print_invalid_level_err_msg();
             continue;
         }
 
-        int num_chances = it->chances;
+        print_chosen_level(it->type);
 
-        std::cout << "\nGreat! You have selected the " << it->name << " difficulty level.\n"
-        "Let's start the game!\n";
-
-        int rand_num = generate_random_num();
+        int secret_num = generate_random_num();
 
         auto start = std::chrono::steady_clock::now();
 
-        bool win = false;
-        int turn_counter = 1;
+        bool won_game = false;
+        int num_attempts = 0;
+
+        int num_chances = it->num_chances;
 
         do
         {
-            std::cout << "\nEnter your guess: ";
+            print_user_prompt_v2();
 
-            int input_num;
+            std::optional<int> input_num = parse_int_from_user_input();
 
-            if (!std::getline(std::cin, line)) return 0;
-
-            auto [ptr, ec] = std::from_chars(
-                line.data(), line.data() + line.size(), input_num);
-
-            if (ec != std::errc{} || ptr != line.data() + line.size())
+            if (!input_num)
             {
-                std::cout << "\nInvalid option. Please try again.\n";
+                if (std::cin.eof())
+                    return 0;
                 continue;
             }
 
-            // Input validation
-            if (!(input_num >= MIN_NUM && input_num <= MAX_NUM))
-            {
-                std::cout << "\n" << input_num << " is not within range -> [" << MIN_NUM << ", " << MAX_NUM << "]. Please try again.\n";
-                continue;
-            }
+            if (!validate_user_guess_range(*input_num)) continue;
 
-            if (input_num == rand_num)
+            num_attempts++;
+
+            if (*input_num == secret_num)
             {
-                std::cout << "\nCongratulations! You guessed the correct number in " << turn_counter
-                    << " attempts.\n\n";
-                min_guesses = !min_guesses ? turn_counter : std::min(*min_guesses, turn_counter);
-                win = true;
-                win_counter++;
+                print_win_msg(num_attempts);
+
+                lowest_num_guesses_in_a_win = !lowest_num_guesses_in_a_win ? num_attempts : std::min(*lowest_num_guesses_in_a_win, num_attempts);
+                won_game = true;
+                num_games_won++;
                 break;
             }
             else
             {
-                std::cout << "\nIncorrect! The number is " << (input_num < rand_num ? "greater" : "lesser") << " than " << input_num << ".\n";
+                print_incorrect_guess_msg(*input_num, secret_num);
             }
-            turn_counter++;
-        } while (turn_counter <= num_chances);
+        } while (num_attempts < num_chances);
 
-        if (!win)
+        if (!won_game)
         {
-            std::cout << "\nYou have run out of chances! The number was: " << rand_num << "\nBetter luck next time :)\n\n";
+            print_lose_msg(secret_num);
         }
 
-        game_counter++;
+        num_games_played++;
 
         // Print Statistics
 
         auto end = std::chrono::steady_clock::now();
         auto time_taken_in_s = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
-        auto time_taken_in_min = time_taken_in_s / NUM_S_IN_MIN;
-        time_taken_in_s = time_taken_in_s % NUM_S_IN_MIN;
+        
+        print_end_stats(time_taken_in_s, num_games_played, num_games_won, num_attempts, won_game, lowest_num_guesses_in_a_win);
 
-        std::string game_stats_str = "***** Game " + std::to_string(game_counter) + " Statistics *****";
-        std::cout << "\n" << game_stats_str << "\n";
-
-        std::cout << "Time taken = " << time_taken_in_min << "m " << time_taken_in_s << "s\n";
-        std::cout << "Status = " << (win ? "WIN" : "LOSE") << "\n";
-        std::cout << "Number of tries = " << (win ? turn_counter : turn_counter - 1) << "\n";
-
-        for (size_t i = 0; i < game_stats_str.size(); ++i) std::cout << '*';
-        std::cout << "\n\n";
-
-        std::string overall_stats_str = "***** Overall Statistics *****";
-        std::cout << "\n" << overall_stats_str << "\n";
-
-        std::cout << "Number of Wins = " << win_counter << " out of " << game_counter << "\n";
-        std::cout << "Lowest Number of Guesses = ";
-
-        if (min_guesses)
-        {
-            std::cout << *min_guesses << "\n";
-        }
-        else
-        {
-            std::cout << "N/A" << "\n";
-        }
-
-        for (size_t i = 0; i < overall_stats_str.size(); ++i) std::cout << '*';
-        std::cout << "\n\n";
-
-        // Turn check
-
-        std::cout << "\nWould you like to play again? (Y/n) ";
+        print_user_prompt_v3();
 
         std::string response;
         if (!std::getline(std::cin, response)) return 0;
 
-        flag = response.size() == 1 ? (response[0] == 'Y' || response[0] == 'y') : false;
+        keep_playing = validate_user_end_response(response);
     }
-    while (flag);
+    while (keep_playing);
 
     return 0;
 }
