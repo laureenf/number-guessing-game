@@ -1,16 +1,30 @@
 #include <iostream>
 #include <random>
-#include <ctime>
 #include <charconv>
 #include <string>
 #include <chrono>
-#include <cstdlib>
-#include <utility>
+#include <optional>
 #include <map>
+#include <algorithm>
+#include <array>
+#include <string_view>
 
-#define NUM_S_IN_MIN (60)
-#define MIN_NUM      (1)
-#define MAX_NUM      (100)
+struct Difficulty
+{
+    int id;
+    std::string_view name;
+    int chances;
+};
+
+constexpr std::array<Difficulty, 3> difficulties{{
+    {1, "Easy",   10},
+    {2, "Medium",  5},
+    {3, "Hard",    3}
+}};
+
+constexpr int NUM_S_IN_MIN = 60;
+constexpr int MIN_NUM = 1;
+constexpr int MAX_NUM = 100;
 
 // Wrapper to generate a random number given a fixed range
 
@@ -21,40 +35,29 @@ int generate_random_num(void)
     return distribution(engine);
 }
 
-// Helper to find min
-
-int min(int a, int b)
-{
-    return a < b ? a : b;
-}
-
 // MAIN
-
-std::map<int, std::pair<std::string, int>> difficulty_levels = \
-{
-    {1, {"Easy",   10}},
-    {2, {"Medium",  5}},
-    {3, {"Hard",    3}},
-};
 
 int main()
 {
     std::cout << "Welcome to the Number Guessing Game!\n"
         "I'm thinking of a number between 1 and 100.\n"
         "You will have multiple chances to guess the correct number.\n\n";
-    
+
     bool flag = true;
-    int min_guesses = 0;
     int game_counter = 0;
     int win_counter = 0;
+
+    std::optional<int> min_guesses;
 
     do
     {
         std::cout << "\nPlease select the difficulty level:\n";
-        
-        for (const auto& [k, v] : difficulty_levels)
+
+        for (const auto& difficulty : difficulties)
         {
-            std::cout << k << ". " << v.first << " (" << v.second << " chances)\n";
+            std::cout << difficulty.id << ". "
+                    << difficulty.name << " ("
+                    << difficulty.chances << " chances)\n";
         }
 
         std::cout << "Enter your choice: ";
@@ -73,20 +76,29 @@ int main()
             continue;
         }
 
-        if (!(level >= difficulty_levels.begin()->first && level <= difficulty_levels.rbegin()->first))
+        auto it = std::find_if(
+            difficulties.begin(),
+            difficulties.end(),
+            [level](const Difficulty& d)
+            {
+                return d.id == level;
+            }
+        );
+
+        if (it == difficulties.end())
         {
-            std::cout << "\n" << level << " is not within range. Please try again.\n";
+            std::cout << "Invalid difficulty level.\n";
             continue;
         }
-        
-        int num_chances = difficulty_levels[level].second;
 
-        std::cout << "\nGreat! You have selected the " << difficulty_levels[level].first << " difficulty level.\n"
+        int num_chances = it->chances;
+
+        std::cout << "\nGreat! You have selected the " << it->name << " difficulty level.\n"
         "Let's start the game!\n";
 
         int rand_num = generate_random_num();
 
-        auto start = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::steady_clock::now();
 
         bool win = false;
         int turn_counter = 1;
@@ -117,9 +129,9 @@ int main()
 
             if (input_num == rand_num)
             {
-                std::cout << "\nCongratulations! You guessed the correct number in " << turn_counter \
+                std::cout << "\nCongratulations! You guessed the correct number in " << turn_counter
                     << " attempts.\n\n";
-                min_guesses = min_guesses == 0 ? turn_counter : min(min_guesses, turn_counter);
+                min_guesses = !min_guesses ? turn_counter : std::min(*min_guesses, turn_counter);
                 win = true;
                 win_counter++;
                 break;
@@ -140,7 +152,7 @@ int main()
 
         // Print Statistics
 
-        auto end = std::chrono::high_resolution_clock::now();
+        auto end = std::chrono::steady_clock::now();
         auto time_taken_in_s = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
         auto time_taken_in_min = time_taken_in_s / NUM_S_IN_MIN;
         time_taken_in_s = time_taken_in_s % NUM_S_IN_MIN;
@@ -154,12 +166,21 @@ int main()
 
         for (size_t i = 0; i < game_stats_str.size(); ++i) std::cout << '*';
         std::cout << "\n\n";
-        
+
         std::string overall_stats_str = "***** Overall Statistics *****";
         std::cout << "\n" << overall_stats_str << "\n";
 
         std::cout << "Number of Wins = " << win_counter << " out of " << game_counter << "\n";
-        std::cout << "Lowest Number of Guesses = " << min_guesses << "\n";
+        std::cout << "Lowest Number of Guesses = ";
+
+        if (min_guesses)
+        {
+            std::cout << *min_guesses << "\n";
+        }
+        else
+        {
+            std::cout << "N/A" << "\n";
+        }
 
         for (size_t i = 0; i < overall_stats_str.size(); ++i) std::cout << '*';
         std::cout << "\n\n";
@@ -177,7 +198,3 @@ int main()
 
     return 0;
 }
-
-#undef NUM_S_IN_MIN
-#undef MIN_NUM
-#undef MAX_NUM
